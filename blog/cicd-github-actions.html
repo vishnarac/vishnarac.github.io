@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CI/CD Pipeline with GitHub Actions and AWS - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container { max-width: 800px; margin: 0 auto; padding: 8rem 2rem 4rem; }
+        .blog-post-header { margin-bottom: 3rem; }
+        .blog-post-meta { color: var(--text-secondary); margin-bottom: 1rem; }
+        .blog-post-content { line-height: 1.8; color: var(--text-secondary); }
+        .blog-post-content h2 { color: var(--text-primary); margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.75rem; }
+        .blog-post-content p { margin-bottom: 1.5rem; }
+        .blog-post-content code { background: var(--bg-card); padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; color: var(--accent-primary); }
+        .blog-post-content pre { background: var(--bg-card); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--border-color); }
+        .blog-post-content pre code { background: none; padding: 0; color: var(--text-primary); }
+        .back-link { display: inline-block; color: var(--accent-primary); text-decoration: none; margin-bottom: 2rem; transition: color 0.3s ease; }
+        .back-link:hover { color: var(--accent-secondary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;"><span class="logo">VNC</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">August 14, 2024 • 11 min read</div>
+            <h1 class="section-title">CI/CD Pipeline with GitHub Actions and AWS</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#devops</span>
+                <span class="blog-tag">#ci-cd</span>
+                <span class="blog-tag">#github-actions</span>
+                <span class="blog-tag">#aws</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>Manual deployments are error-prone and slow. I learned this after deploying the wrong branch to production at 2 AM. GitHub Actions changed everything - now every commit is tested, built, and deployed automatically. Let me show you how.</p>
+
+            <h2>Basic CI Pipeline</h2>
+            
+            <p>Start with a simple workflow that runs tests on every push:</p>
+
+            <pre><code># .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Run tests
+      run: |
+        go test -v -race -coverprofile=coverage.out ./...
+        go tool cover -html=coverage.out -o coverage.html
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.out</code></pre>
+
+            <h2>Building and Pushing Docker Images</h2>
+
+            <pre><code>  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Build and push image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: myapp
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest</code></pre>
+
+            <h2>Deploying to ECS</h2>
+
+            <pre><code>  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition myapp \
+          --query taskDefinition > task-definition.json
+    
+    - name: Update task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: myapp
+        image: ${{ secrets.ECR_REGISTRY }}/myapp:${{ github.sha }}
+    
+    - name: Deploy to ECS
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: myapp-service
+        cluster: production
+        wait-for-service-stability: true</code></pre>
+
+            <h2>Environment-Specific Deployments</h2>
+
+            <p>Use GitHub Environments for staging and production:</p>
+
+            <pre><code>  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    # Same as deploy but with staging cluster
+    
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    # Production deployment steps</code></pre>
+
+            <p>Set up protection rules in GitHub to require approvals for production.</p>
+
+            <h2>Secrets Management</h2>
+
+            <p>Never hardcode secrets. Use GitHub Secrets:</p>
+
+            <pre><code># In your workflow
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  API_KEY: ${{ secrets.API_KEY }}
+
+# Or use AWS Secrets Manager
+- name: Get secrets
+  run: |
+    SECRET=$(aws secretsmanager get-secret-value \
+      --secret-id prod/myapp/config \
+      --query SecretString \
+      --output text)
+    echo "::add-mask::$SECRET"
+    echo "SECRET=$SECRET" >> $GITHUB_ENV</code></pre>
+
+            <h2>Rollback Strategy</h2>
+
+            <p>Always have a rollback plan:</p>
+
+            <pre><code>  rollback:
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+    - name: Rollback to previous version
+      run: |
+        PREVIOUS_TAG=$(aws ecr describe-images \
+          --repository-name myapp \
+          --query 'sort_by(imageDetails,& imagePushedAt)[-2].imageTags[0]' \
+          --output text)
+        
+        aws ecs update-service \
+          --cluster production \
+          --service myapp-service \
+          --force-new-deployment \
+          --task-definition myapp:$PREVIOUS_TAG</code></pre>
+
+            <h2>Monitoring Deployments</h2>
+
+            <p>Send notifications to Slack:</p>
+
+            <pre><code>    - name: Notify Slack
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Deployment to production: ${{ job.status }}'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ul>
+                <li>Run tests before building images</li>
+                <li>Use caching to speed up builds</li>
+                <li>Tag images with git SHA for traceability</li>
+                <li>Implement health checks before marking deployment successful</li>
+                <li>Always have a rollback strategy</li>
+                <li>Monitor deployments and set up alerts</li>
+            </ul>
+
+            <h2>The Deployment That Saved Us</h2>
+
+            <p>Last month, a bug made it to production. Our CI/CD pipeline detected the health check failures and automatically rolled back within 2 minutes. Users barely noticed. That's the power of automation.</p>
+
+            <p>Happy deploying! 🚀</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Series Forecasting with Prophet and LSTM - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container { max-width: 800px; margin: 0 auto; padding: 8rem 2rem 4rem; }
+        .blog-post-header { margin-bottom: 3rem; }
+        .blog-post-meta { color: var(--text-secondary); margin-bottom: 1rem; }
+        .blog-post-content { line-height: 1.8; color: var(--text-secondary); }
+        .blog-post-content h2 { color: var(--text-primary); margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.75rem; }
+        .blog-post-content p { margin-bottom: 1.5rem; }
+        .blog-post-content code { background: var(--bg-card); padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; color: var(--accent-primary); }
+        .blog-post-content pre { background: var(--bg-card); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--border-color); }
+        .blog-post-content pre code { background: none; padding: 0; color: var(--text-primary); }
+        .back-link { display: inline-block; color: var(--accent-primary); text-decoration: none; margin-bottom: 2rem; transition: color 0.3s ease; }
+        .back-link:hover { color: var(--accent-secondary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;"><span class="logo">VNC</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">July 3, 2025 • 11 min read</div>
+            <h1 class="section-title">Time Series Forecasting with Prophet and LSTM</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#data-science</span>
+                <span class="blog-tag">#time-series</span>
+                <span class="blog-tag">#deep-learning</span>
+                <span class="blog-tag">#prophet</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>Time series forecasting is everywhere - stock prices, sales predictions, server load forecasting. I've built models for all of these, and the two approaches that consistently work are Facebook's Prophet and LSTM networks. Let me show you when to use each.</p>
+
+            <h2>Prophet: The Quick Win</h2>
+            
+            <p>Prophet is my go-to for business forecasting. It's fast, handles missing data, and works out of the box:</p>
+
+            <pre><code>from prophet import Prophet
+import pandas as pd
+
+# Prophet needs 'ds' (date) and 'y' (value) columns
+df = pd.DataFrame({
+    'ds': dates,
+    'y': sales_values
+})
+
+model = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False
+)
+
+model.fit(df)
+
+# Forecast 90 days ahead
+future = model.make_future_dataframe(periods=90)
+forecast = model.predict(future)
+
+# Plot results
+model.plot(forecast)
+model.plot_components(forecast)</code></pre>
+
+            <p>The component plots are gold - they show you trends, seasonality, and holidays separately. This helped me explain to stakeholders why sales dip every January.</p>
+
+            <h2>Adding Custom Seasonality</h2>
+
+            <pre><code># Add monthly seasonality
+model.add_seasonality(
+    name='monthly',
+    period=30.5,
+    fourier_order=5
+)
+
+# Add custom events
+holidays = pd.DataFrame({
+    'holiday': 'black_friday',
+    'ds': pd.to_datetime(['2024-11-24', '2025-11-23']),
+    'lower_window': -1,
+    'upper_window': 1,
+})
+
+model = Prophet(holidays=holidays)</code></pre>
+
+            <h2>LSTM: When You Need More Power</h2>
+
+            <p>LSTMs shine when you have complex patterns and lots of data. Here's a basic implementation:</p>
+
+            <pre><code>import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+
+def create_sequences(data, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i+seq_length])
+        y.append(data[i+seq_length])
+    return np.array(X), np.array(y)
+
+# Prepare data
+seq_length = 60  # Use 60 days to predict next day
+X, y = create_sequences(scaled_data, seq_length)
+
+# Reshape for LSTM [samples, timesteps, features]
+X = X.reshape((X.shape[0], X.shape[1], 1))
+
+# Build model
+model = Sequential([
+    LSTM(50, return_sequences=True, input_shape=(seq_length, 1)),
+    Dropout(0.2),
+    LSTM(50, return_sequences=False),
+    Dropout(0.2),
+    Dense(25),
+    Dense(1)
+])
+
+model.compile(optimizer='adam', loss='mse')
+model.fit(X, y, epochs=50, batch_size=32, validation_split=0.2)</code></pre>
+
+            <h2>Prophet vs LSTM: When to Use What</h2>
+
+            <p><strong>Use Prophet when:</strong></p>
+            <ul>
+                <li>You have clear seasonality patterns</li>
+                <li>You need quick results</li>
+                <li>You want interpretable forecasts</li>
+                <li>You have missing data or outliers</li>
+            </ul>
+
+            <p><strong>Use LSTM when:</strong></p>
+            <ul>
+                <li>You have lots of training data (1000+ points)</li>
+                <li>Patterns are complex and non-linear</li>
+                <li>You need to capture long-term dependencies</li>
+                <li>You have multiple input features</li>
+            </ul>
+
+            <h2>Real-World Example: Sales Forecasting</h2>
+
+            <p>I built both models for a retail client. Prophet gave 85% accuracy with 2 hours of work. LSTM took 2 days of tuning but reached 91% accuracy. The extra 6% was worth it for their $10M inventory decisions.</p>
+
+            <pre><code># Ensemble approach - best of both worlds
+prophet_pred = prophet_model.predict(future)['yhat']
+lstm_pred = lstm_model.predict(X_test)
+
+# Weighted average
+final_pred = 0.6 * lstm_pred + 0.4 * prophet_pred</code></pre>
+
+            <h2>Common Pitfalls</h2>
+
+            <p><strong>1. Not scaling data for LSTM:</strong> Always normalize to [0,1] range.</p>
+
+            <p><strong>2. Ignoring stationarity:</strong> Differencing can help both models.</p>
+
+            <p><strong>3. Overfitting LSTM:</strong> Use dropout and early stopping.</p>
+
+            <p><strong>4. Not validating properly:</strong> Use time-based splits, not random splits!</p>
+
+            <h2>Final Thoughts</h2>
+
+            <p>Start with Prophet. If you need better accuracy and have the data, try LSTM. And remember - no model can predict black swan events. Always have a plan B.</p>
+
+            <p>Happy forecasting! 📈</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

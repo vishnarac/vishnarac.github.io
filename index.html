@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vishnu Nair C - Personal Blog</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span class="logo">VNC</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link active">Home</a></li>
+                <li><a href="#services" class="nav-link">Services</a></li>
+                <li><a href="#blog" class="nav-link">Blog</a></li>
+                <li><a href="#contact" class="nav-link">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <p class="hero-greeting">HELLO WORLD! MY NAME IS</p>
+                <h1 class="hero-title">VISHNU NAIR C</h1>
+                <p class="hero-subtitle">Building scalable systems and exploring data-driven solutions.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="about-content">
+                <div class="about-text">
+                    <h2 class="section-title">About Me</h2>
+                    <p>I'm <strong>Vishnu Nair C</strong>, an engineer who builds scalable backend systems and explores the intersection of technology and data science. When I'm not writing Go code or training ML models, you'll find me contemplating life's bigger questions.</p>
+                    <p>I'm an atheist with a deep appreciation for Buddhist philosophy - the concepts of mindfulness, compassion, and interconnectedness resonate with how I try to live. I have a strong empathy for animals and actively support animal rights causes. I volunteer with <strong>PETA</strong>, advocating for ethical treatment of animals and working towards a more compassionate world.</p>
+                    <p>This blog is where I share my technical learnings, thoughts on building robust systems, and occasionally, reflections on the things that matter beyond code.</p>
+                </div>
+                <div class="about-image">
+                    <div class="profile-placeholder">
+                        <svg width="120" height="120" viewBox="0 0 120 120" fill="currentColor">
+                            <circle cx="60" cy="40" r="20"/>
+                            <path d="M60 65c-20 0-35 10-35 25v10h70V90c0-15-15-25-35-25z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="services">
+        <div class="container">
+            <h2 class="section-title">What I Do</h2>
+            <p class="section-description">I build scalable backend systems, develop ML models, and architect cloud infrastructure.</p>
+            
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">⚡</div>
+                    <h3>High-Performance Systems</h3>
+                    <p>Building fast and scalable applications that handle millions of requests without breaking a sweat.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🏗️</div>
+                    <h3>Infrastructure as Code</h3>
+                    <p>Modern cloud infrastructure with automated deployments and monitoring.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🤖</div>
+                    <h3>ML/Data Science</h3>
+                    <p>Machine learning models, data analysis, and AI-powered solutions for real-world problems.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🔌</div>
+                    <h3>API Development</h3>
+                    <p>RESTful and GraphQL APIs that developers love to use.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Blog Section -->
+    <section id="blog" class="blog">
+        <div class="container">
+            <div class="blog-header">
+                <h2 class="section-title">Blog</h2>
+                <p class="section-description">Thoughts on software engineering, web development, and tech.</p>
+            </div>
+            
+            <div class="blog-search">
+                <input type="text" id="searchInput" placeholder="Search articles..." class="search-input">
+            </div>
+
+            <div class="blog-grid" id="blogGrid">
+                <!-- Blog posts will be inserted here by JavaScript -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact">
+        <div class="container">
+            <h2 class="section-title">Get In Touch</h2>
+            <p class="section-description">Feel free to reach out for collaborations or just a friendly hello!</p>
+            
+            <div class="contact-links">
+                <a href="mailto:vishnarac@gmail.com" class="contact-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    Email
+                </a>
+                <a href="https://linkedin.com/in/vishnc" target="_blank" class="contact-link">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/>
+                        <circle cx="4" cy="4" r="2"/>
+                    </svg>
+                    LinkedIn
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

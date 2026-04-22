@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exploratory Data Analysis: A Practical Guide - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container { max-width: 800px; margin: 0 auto; padding: 8rem 2rem 4rem; }
+        .blog-post-header { margin-bottom: 3rem; }
+        .blog-post-meta { color: var(--text-secondary); margin-bottom: 1rem; }
+        .blog-post-content { line-height: 1.8; color: var(--text-secondary); }
+        .blog-post-content h2 { color: var(--text-primary); margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.75rem; }
+        .blog-post-content p { margin-bottom: 1.5rem; }
+        .blog-post-content code { background: var(--bg-card); padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; color: var(--accent-primary); }
+        .blog-post-content pre { background: var(--bg-card); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--border-color); }
+        .blog-post-content pre code { background: none; padding: 0; color: var(--text-primary); }
+        .blog-post-content ul { margin-bottom: 1.5rem; padding-left: 2rem; }
+        .blog-post-content li { margin-bottom: 0.5rem; }
+        .back-link { display: inline-block; color: var(--text-primary); text-decoration: none; margin-bottom: 2rem; transition: color 0.3s ease; }
+        .back-link:hover { color: var(--accent-secondary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;"><span class="logo">VNC</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">May 20, 2024 • 10 min read</div>
+            <h1 class="section-title">Exploratory Data Analysis: A Practical Guide</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#data-science</span>
+                <span class="blog-tag">#python</span>
+                <span class="blog-tag">#eda</span>
+                <span class="blog-tag">#visualization</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>EDA is where data science actually happens. Not in fancy models, but in understanding your data. I've seen teams waste weeks building models on data they didn't understand. Don't be that team.</p>
+
+            <h2>Start with the Basics</h2>
+            
+            <p>Always start here:</p>
+
+            <pre><code>import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load data
+df = pd.read_csv('data.csv')
+
+# First look
+print(df.head())
+print(df.info())
+print(df.describe())
+
+# Check for missing values
+print(df.isnull().sum())
+
+# Check data types
+print(df.dtypes)</code></pre>
+
+            <p>This takes 30 seconds and tells you 80% of what you need to know.</p>
+
+            <h2>Visualizing Distributions</h2>
+
+            <pre><code># Numerical features
+df.hist(figsize=(15, 10), bins=50)
+plt.tight_layout()
+plt.show()
+
+# Or use seaborn for prettier plots
+for col in df.select_dtypes(include=[np.number]).columns:
+    plt.figure(figsize=(10, 4))
+    sns.histplot(df[col], kde=True)
+    plt.title(f'Distribution of {col}')
+    plt.show()
+
+# Box plots for outliers
+plt.figure(figsize=(12, 6))
+df.boxplot()
+plt.xticks(rotation=45)
+plt.show()</code></pre>
+
+            <h2>Correlation Analysis</h2>
+
+            <pre><code># Correlation matrix
+corr = df.corr()
+
+# Heatmap
+plt.figure(figsize=(12, 10))
+sns.heatmap(corr, annot=True, cmap='coolwarm', center=0)
+plt.title('Correlation Matrix')
+plt.show()
+
+# Find highly correlated features
+high_corr = corr[abs(corr) > 0.8]
+print(high_corr)</code></pre>
+
+            <p>I once found two features with 0.99 correlation. Turned out they were the same thing measured differently. Removing one improved model performance.</p>
+
+            <h2>Categorical Variables</h2>
+
+            <pre><code># Value counts
+for col in df.select_dtypes(include=['object']).columns:
+    print(f"\n{col}:")
+    print(df[col].value_counts())
+
+# Bar plots
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+for idx, col in enumerate(df.select_dtypes(include=['object']).columns[:4]):
+    df[col].value_counts().plot(kind='bar', ax=axes[idx//2, idx%2])
+    axes[idx//2, idx%2].set_title(col)
+plt.tight_layout()
+plt.show()</code></pre>
+
+            <h2>Handling Outliers</h2>
+
+            <pre><code># IQR method
+Q1 = df.quantile(0.25)
+Q3 = df.quantile(0.75)
+IQR = Q3 - Q1
+
+# Find outliers
+outliers = ((df < (Q1 - 1.5 * IQR)) | (df > (Q3 + 1.5 * IQR))).sum()
+print("Outliers per column:")
+print(outliers)
+
+# Visualize with box plots
+sns.boxplot(data=df)
+plt.xticks(rotation=45)
+plt.show()</code></pre>
+
+            <p>Don't automatically remove outliers. Sometimes they're the most interesting data points.</p>
+
+            <h2>Time Series Analysis</h2>
+
+            <pre><code>if 'date' in df.columns:
+    df['date'] = pd.to_datetime(df['date'])
+    df.set_index('date', inplace=True)
+    
+    # Plot over time
+    df['value'].plot(figsize=(15, 5))
+    plt.title('Value over Time')
+    plt.show()
+    
+    # Resample to monthly
+    monthly = df.resample('M').mean()
+    monthly.plot(figsize=(15, 5))
+    plt.title('Monthly Average')
+    plt.show()</code></pre>
+
+            <h2>My EDA Checklist</h2>
+
+            <ul>
+                <li>✓ Load data and check shape</li>
+                <li>✓ Check data types and missing values</li>
+                <li>✓ Get summary statistics</li>
+                <li>✓ Visualize distributions</li>
+                <li>✓ Check for outliers</li>
+                <li>✓ Analyze correlations</li>
+                <li>✓ Explore categorical variables</li>
+                <li>✓ Look for patterns over time</li>
+                <li>✓ Document findings</li>
+            </ul>
+
+            <h2>Tools That Make EDA Easier</h2>
+
+            <pre><code># pandas-profiling: Automatic EDA report
+from pandas_profiling import ProfileReport
+
+profile = ProfileReport(df, title="EDA Report")
+profile.to_file("report.html")
+
+# sweetviz: Compare datasets
+import sweetviz as sv
+
+report = sv.analyze(df)
+report.show_html("sweetviz_report.html")</code></pre>
+
+            <p>These tools generate comprehensive reports in seconds. Use them for initial exploration, then dig deeper manually.</p>
+
+            <h2>The EDA That Saved a Project</h2>
+
+            <p>Last year, a client's model had terrible accuracy. During EDA, I found that 40% of their "customer age" values were over 150 years old. Data entry error. Fixed the data, retrained the model, accuracy jumped from 65% to 89%.</p>
+
+            <p>EDA isn't glamorous, but it's where the real work happens. Spend time here. Your models will thank you.</p>
+
+            <p>Happy exploring! 🔍</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

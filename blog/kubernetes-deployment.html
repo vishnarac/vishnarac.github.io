@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Deployment Strategies Explained - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container { max-width: 800px; margin: 0 auto; padding: 8rem 2rem 4rem; }
+        .blog-post-header { margin-bottom: 3rem; }
+        .blog-post-meta { color: var(--text-secondary); margin-bottom: 1rem; }
+        .blog-post-content { line-height: 1.8; color: var(--text-secondary); }
+        .blog-post-content h2 { color: var(--text-primary); margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.75rem; }
+        .blog-post-content p { margin-bottom: 1.5rem; }
+        .blog-post-content code { background: var(--bg-card); padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; color: var(--accent-primary); }
+        .blog-post-content pre { background: var(--bg-card); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--border-color); }
+        .blog-post-content pre code { background: none; padding: 0; color: var(--text-primary); }
+        .blog-post-content ul { margin-bottom: 1.5rem; padding-left: 2rem; }
+        .blog-post-content li { margin-bottom: 0.5rem; }
+        .back-link { display: inline-block; color: var(--accent-primary); text-decoration: none; margin-bottom: 2rem; transition: color 0.3s ease; }
+        .back-link:hover { color: var(--accent-secondary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;"><span class="logo">VNC</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">April 18, 2025 • 10 min read</div>
+            <h1 class="section-title">Kubernetes Deployment Strategies Explained</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#kubernetes</span>
+                <span class="blog-tag">#devops</span>
+                <span class="blog-tag">#deployment</span>
+                <span class="blog-tag">#containers</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>Deploying to production shouldn't feel like defusing a bomb. Yet I've seen teams take down entire services because they didn't understand Kubernetes deployment strategies. Let me break down the three main approaches and when to use each.</p>
+
+            <h2>Rolling Updates: The Default Choice</h2>
+            
+            <p>This is Kubernetes' default strategy, and it works great for most cases:</p>
+
+            <pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+spec:
+  replicas: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2        # Max pods above desired count
+      maxUnavailable: 1  # Max pods that can be unavailable
+  template:
+    spec:
+      containers:
+      - name: myapp
+        image: myapp:v2
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5</code></pre>
+
+            <p>With these settings, Kubernetes will:</p>
+            <ul>
+                <li>Create 2 new pods (maxSurge)</li>
+                <li>Wait for them to be ready</li>
+                <li>Terminate 1 old pod (maxUnavailable)</li>
+                <li>Repeat until all pods are updated</li>
+            </ul>
+
+            <p><strong>Pro tip:</strong> Always set readiness probes. Without them, Kubernetes will send traffic to pods that aren't ready, causing errors.</p>
+
+            <h2>Blue-Green Deployments: Zero Downtime</h2>
+
+            <p>Blue-green is perfect when you need instant rollback capability:</p>
+
+            <pre><code># Blue deployment (current)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-blue
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: myapp
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: blue
+    spec:
+      containers:
+      - name: myapp
+        image: myapp:v1
+
+---
+# Green deployment (new)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-green
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: myapp
+      version: green
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: green
+    spec:
+      containers:
+      - name: myapp
+        image: myapp:v2
+
+---
+# Service (switch between blue and green)
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+spec:
+  selector:
+    app: myapp
+    version: blue  # Change to 'green' to switch
+  ports:
+  - port: 80
+    targetPort: 8080</code></pre>
+
+            <p>To deploy:</p>
+            <pre><code># 1. Deploy green
+kubectl apply -f myapp-green.yaml
+
+# 2. Test green deployment
+kubectl port-forward deployment/myapp-green 8080:8080
+
+# 3. Switch traffic
+kubectl patch service myapp -p '{"spec":{"selector":{"version":"green"}}}'
+
+# 4. Rollback if needed (instant!)
+kubectl patch service myapp -p '{"spec":{"selector":{"version":"blue"}}}'</code></pre>
+
+            <p>The downside? You need 2x resources during deployment. But for critical services, it's worth it.</p>
+
+            <h2>Canary Deployments: Test in Production Safely</h2>
+
+            <p>Canary lets you test new versions with a small percentage of traffic:</p>
+
+            <pre><code># Stable deployment (90% traffic)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-stable
+spec:
+  replicas: 9
+  selector:
+    matchLabels:
+      app: myapp
+      track: stable
+  template:
+    metadata:
+      labels:
+        app: myapp
+        track: stable
+    spec:
+      containers:
+      - name: myapp
+        image: myapp:v1
+
+---
+# Canary deployment (10% traffic)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: myapp
+        track: canary
+    spec:
+      containers:
+      - name: myapp
+        image: myapp:v2
+
+---
+# Service (routes to both)
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+spec:
+  selector:
+    app: myapp  # Matches both stable and canary
+  ports:
+  - port: 80
+    targetPort: 8080</code></pre>
+
+            <p>Monitor your canary metrics. If error rates spike, rollback immediately:</p>
+
+            <pre><code># Rollback: delete canary
+kubectl delete deployment myapp-canary
+
+# Promote: scale up canary, scale down stable
+kubectl scale deployment myapp-canary --replicas=10
+kubectl scale deployment myapp-stable --replicas=0</code></pre>
+
+            <h2>Which Strategy Should You Use?</h2>
+
+            <p><strong>Rolling Updates:</strong> Default choice for most applications. Simple, automatic, and works well.</p>
+
+            <p><strong>Blue-Green:</strong> When you need instant rollback or zero downtime for critical services. Worth the extra resources.</p>
+
+            <p><strong>Canary:</strong> When you want to test in production with minimal risk. Great for gradual rollouts.</p>
+
+            <h2>Pro Tips</h2>
+
+            <ul>
+                <li>Always use readiness and liveness probes</li>
+                <li>Set appropriate resource limits</li>
+                <li>Use PodDisruptionBudgets to prevent too many pods going down</li>
+                <li>Monitor metrics during deployments</li>
+                <li>Have a rollback plan (and test it!)</li>
+            </ul>
+
+            <h2>The Deployment That Taught Me Everything</h2>
+
+            <p>Last year, we deployed a new version using rolling updates. No readiness probe. The new pods started receiving traffic immediately, but they needed 30 seconds to warm up. Result? 30 seconds of 500 errors for every pod update. We took down the entire service.</p>
+
+            <p>Now? Every deployment has proper health checks, and we test rollbacks in staging. Learn from my mistakes.</p>
+
+            <p>Happy deploying! 🚀</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

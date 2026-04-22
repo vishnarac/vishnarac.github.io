@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building RESTful APIs in Go: Design Patterns and Best Practices - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+        .blog-post-header {
+            margin-bottom: 3rem;
+        }
+        .blog-post-meta {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        .blog-post-content {
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        .blog-post-content h2 {
+            color: var(--text-primary);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.75rem;
+        }
+        .blog-post-content h3 {
+            color: var(--text-primary);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.35rem;
+        }
+        .blog-post-content p {
+            margin-bottom: 1.5rem;
+        }
+        .blog-post-content code {
+            background: var(--bg-card);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+            color: var(--accent-primary);
+        }
+        .blog-post-content pre {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+        .blog-post-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+        .blog-post-content ul {
+            margin-bottom: 1.5rem;
+            padding-left: 2rem;
+        }
+        .blog-post-content li {
+            margin-bottom: 0.5rem;
+        }
+        .back-link {
+            display: inline-block;
+            color: var(--accent-primary);
+            text-decoration: none;
+            margin-bottom: 2rem;
+            transition: color 0.3s ease;
+        }
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;">
+                    <span class="logo">VNC</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">February 5, 2025 • 10 min read</div>
+            <h1 class="section-title">Building RESTful APIs in Go: Design Patterns and Best Practices</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#golang</span>
+                <span class="blog-tag">#rest-api</span>
+                <span class="blog-tag">#backend</span>
+                <span class="blog-tag">#design-patterns</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>After building REST APIs in Go for the past three years, I've learned that the standard library gives you everything you need - but knowing how to structure your code makes all the difference. Let me share the patterns that have worked best for me.</p>
+
+            <h2>Project Structure That Scales</h2>
+
+            <p>Here's the structure I use for all my Go APIs:</p>
+
+            <pre><code>myapi/
+├── cmd/
+│   └── api/
+│       └── main.go
+├── internal/
+│   ├── handlers/
+│   ├── models/
+│   ├── repository/
+│   └── middleware/
+├── pkg/
+│   └── response/
+└── go.mod</code></pre>
+
+            <p>The <code>internal</code> directory is key - Go won't let other projects import from it, which helps maintain clean boundaries.</p>
+
+            <h2>Handler Pattern</h2>
+
+            <p>I structure my handlers as methods on a struct that holds dependencies:</p>
+
+            <pre><code>type Handler struct {
+    db     *sql.DB
+    logger *log.Logger
+    cache  Cache
+}
+
+func NewHandler(db *sql.DB, logger *log.Logger, cache Cache) *Handler {
+    return &Handler{
+        db:     db,
+        logger: logger,
+        cache:  cache,
+    }
+}
+
+func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+    userID := chi.URLParam(r, "id")
+    
+    user, err := h.repository.GetUser(r.Context(), userID)
+    if err != nil {
+        h.respondError(w, http.StatusNotFound, "user not found")
+        return
+    }
+    
+    h.respondJSON(w, http.StatusOK, user)
+}</code></pre>
+
+            <h2>Middleware for Cross-Cutting Concerns</h2>
+
+            <p>Middleware is perfect for logging, authentication, and rate limiting:</p>
+
+            <pre><code>func (h *Handler) LoggingMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        
+        next.ServeHTTP(w, r)
+        
+        h.logger.Printf(
+            "%s %s %s",
+            r.Method,
+            r.RequestURI,
+            time.Since(start),
+        )
+    })
+}
+
+func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        token := r.Header.Get("Authorization")
+        
+        if token == "" {
+            http.Error(w, "unauthorized", http.StatusUnauthorized)
+            return
+        }
+        
+        userID, err := h.validateToken(token)
+        if err != nil {
+            http.Error(w, "invalid token", http.StatusUnauthorized)
+            return
+        }
+        
+        ctx := context.WithValue(r.Context(), "userID", userID)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}</code></pre>
+
+            <h2>Request Validation</h2>
+
+            <p>Always validate input. I use a simple validation package:</p>
+
+            <pre><code>type CreateUserRequest struct {
+    Name  string `json:"name" validate:"required,min=2,max=100"`
+    Email string `json:"email" validate:"required,email"`
+    Age   int    `json:"age" validate:"required,min=18,max=120"`
+}
+
+func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
+    var req CreateUserRequest
+    
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        h.respondError(w, http.StatusBadRequest, "invalid request body")
+        return
+    }
+    
+    if err := h.validator.Struct(req); err != nil {
+        h.respondError(w, http.StatusBadRequest, err.Error())
+        return
+    }
+    
+    // Process request...
+}</code></pre>
+
+            <h2>Error Handling</h2>
+
+            <p>Consistent error responses are crucial. Here's my approach:</p>
+
+            <pre><code>type ErrorResponse struct {
+    Error   string `json:"error"`
+    Message string `json:"message"`
+    Code    int    `json:"code"`
+}
+
+func (h *Handler) respondError(w http.ResponseWriter, code int, message string) {
+    h.respondJSON(w, code, ErrorResponse{
+        Error:   http.StatusText(code),
+        Message: message,
+        Code:    code,
+    })
+}
+
+func (h *Handler) respondJSON(w http.ResponseWriter, code int, payload interface{}) {
+    response, err := json.Marshal(payload)
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        w.Write([]byte("internal server error"))
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(code)
+    w.Write(response)
+}</code></pre>
+
+            <h2>Router Setup</h2>
+
+            <p>I use chi router for its simplicity and middleware support:</p>
+
+            <pre><code>func (h *Handler) Routes() http.Handler {
+    r := chi.NewRouter()
+    
+    // Global middleware
+    r.Use(middleware.Logger)
+    r.Use(middleware.Recoverer)
+    r.Use(middleware.Timeout(60 * time.Second))
+    
+    // Public routes
+    r.Post("/api/v1/auth/login", h.Login)
+    r.Post("/api/v1/auth/register", h.Register)
+    
+    // Protected routes
+    r.Group(func(r chi.Router) {
+        r.Use(h.AuthMiddleware)
+        
+        r.Get("/api/v1/users/{id}", h.GetUser)
+        r.Put("/api/v1/users/{id}", h.UpdateUser)
+        r.Delete("/api/v1/users/{id}", h.DeleteUser)
+        
+        r.Get("/api/v1/posts", h.ListPosts)
+        r.Post("/api/v1/posts", h.CreatePost)
+    })
+    
+    return r
+}</code></pre>
+
+            <h2>Testing</h2>
+
+            <p>Always test your handlers. Here's a simple example:</p>
+
+            <pre><code>func TestGetUser(t *testing.T) {
+    handler := NewHandler(mockDB, mockLogger, mockCache)
+    
+    req := httptest.NewRequest("GET", "/api/v1/users/123", nil)
+    w := httptest.NewRecorder()
+    
+    handler.GetUser(w, req)
+    
+    if w.Code != http.StatusOK {
+        t.Errorf("expected status 200, got %d", w.Code)
+    }
+}</code></pre>
+
+            <h2>Key Takeaways</h2>
+
+            <ul>
+                <li>Use dependency injection for testability</li>
+                <li>Middleware for cross-cutting concerns</li>
+                <li>Always validate input</li>
+                <li>Consistent error responses</li>
+                <li>Context for request-scoped values</li>
+                <li>Proper project structure from day one</li>
+            </ul>
+
+            <p>These patterns have served me well across multiple production APIs. Start with these basics, and adjust based on your specific needs.</p>
+
+            <p>Happy coding! 🚀</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

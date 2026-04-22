@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infrastructure as Code with Terraform: Best Practices - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container { max-width: 800px; margin: 0 auto; padding: 8rem 2rem 4rem; }
+        .blog-post-header { margin-bottom: 3rem; }
+        .blog-post-meta { color: var(--text-secondary); margin-bottom: 1rem; }
+        .blog-post-content { line-height: 1.8; color: var(--text-secondary); }
+        .blog-post-content h2 { color: var(--text-primary); margin-top: 2.5rem; margin-bottom: 1rem; font-size: 1.75rem; }
+        .blog-post-content h3 { color: var(--text-primary); margin-top: 2rem; margin-bottom: 0.75rem; font-size: 1.35rem; }
+        .blog-post-content p { margin-bottom: 1.5rem; }
+        .blog-post-content code { background: var(--bg-card); padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-family: 'Courier New', monospace; color: var(--accent-primary); }
+        .blog-post-content pre { background: var(--bg-card); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid var(--border-color); }
+        .blog-post-content pre code { background: none; padding: 0; color: var(--text-primary); }
+        .blog-post-content ul { margin-bottom: 1.5rem; padding-left: 2rem; }
+        .blog-post-content li { margin-bottom: 0.5rem; }
+        .back-link { display: inline-block; color: var(--accent-primary); text-decoration: none; margin-bottom: 2rem; transition: color 0.3s ease; }
+        .back-link:hover { color: var(--accent-secondary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;">
+                    <span class="logo">VNC</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">November 22, 2025 • 12 min read</div>
+            <h1 class="section-title">Infrastructure as Code with Terraform: Best Practices</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#terraform</span>
+                <span class="blog-tag">#iac</span>
+                <span class="blog-tag">#devops</span>
+                <span class="blog-tag">#cloud</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>Managing infrastructure manually is like playing Russian roulette with your production environment. One wrong click and boom - your database is gone. Terraform changed how I think about infrastructure, and I'm never going back to clicking buttons in AWS console.</p>
+
+            <h2>Why Terraform?</h2>
+            
+            <p>I've tried CloudFormation, Pulumi, and ARM templates. Terraform won because:</p>
+            <ul>
+                <li>Works with multiple cloud providers</li>
+                <li>Declarative syntax that's actually readable</li>
+                <li>Massive community and module ecosystem</li>
+                <li>State management that actually works</li>
+            </ul>
+
+            <h2>Project Structure That Scales</h2>
+
+            <p>Here's the structure I use for all projects:</p>
+
+            <pre><code>terraform/
+├── environments/
+│   ├── dev/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── terraform.tfvars
+│   ├── staging/
+│   └── prod/
+├── modules/
+│   ├── vpc/
+│   ├── eks/
+│   └── rds/
+└── global/
+    └── s3-backend/</code></pre>
+
+            <p>Never put everything in one file. Your future self will thank you.</p>
+
+            <h2>State Management</h2>
+
+            <p>Always use remote state. Always. Here's my S3 backend setup:</p>
+
+            <pre><code>terraform {
+  backend "s3" {
+    bucket         = "my-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-locks"
+  }
+}</code></pre>
+
+            <p>The DynamoDB table prevents concurrent modifications. I learned this after two engineers applied changes simultaneously and corrupted the state. Not fun.</p>
+
+            <h2>Writing Reusable Modules</h2>
+
+            <p>Modules are your best friend. Here's a simple VPC module:</p>
+
+            <pre><code># modules/vpc/main.tf
+resource "aws_vpc" "main" {
+  cidr_block           = var.cidr_block
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-vpc"
+    }
+  )
+}
+
+resource "aws_subnet" "public" {
+  count             = length(var.public_subnet_cidrs)
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.public_subnet_cidrs[count.index]
+  availability_zone = var.availability_zones[count.index]
+
+  tags = merge(
+    var.tags,
+    {
+      Name = "${var.environment}-public-${count.index + 1}"
+      Type = "public"
+    }
+  )
+}
+
+# modules/vpc/variables.tf
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "cidr_block" {
+  description = "VPC CIDR block"
+  type        = string
+}
+
+variable "public_subnet_cidrs" {
+  description = "Public subnet CIDR blocks"
+  type        = list(string)
+}
+
+variable "availability_zones" {
+  description = "Availability zones"
+  type        = list(string)
+}
+
+variable "tags" {
+  description = "Common tags"
+  type        = map(string)
+  default     = {}
+}</code></pre>
+
+            <p>Now you can reuse this across environments:</p>
+
+            <pre><code>module "vpc" {
+  source = "../../modules/vpc"
+
+  environment          = "prod"
+  cidr_block          = "10.0.0.0/16"
+  public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+  availability_zones  = ["us-east-1a", "us-east-1b"]
+
+  tags = {
+    Project = "MyApp"
+    Team    = "Platform"
+  }
+}</code></pre>
+
+            <h2>Variable Management</h2>
+
+            <p>Use <code>terraform.tfvars</code> for environment-specific values:</p>
+
+            <pre><code># environments/prod/terraform.tfvars
+environment = "prod"
+instance_type = "t3.large"
+min_size = 3
+max_size = 10
+db_instance_class = "db.r5.xlarge"</code></pre>
+
+            <p>Never commit secrets! Use environment variables or AWS Secrets Manager:</p>
+
+            <pre><code># Use environment variables
+export TF_VAR_db_password="super-secret"
+
+# Or reference from Secrets Manager
+data "aws_secretsmanager_secret_version" "db_password" {
+  secret_id = "prod/db/password"
+}
+
+resource "aws_db_instance" "main" {
+  password = data.aws_secretsmanager_secret_version.db_password.secret_string
+}</code></pre>
+
+            <h2>Workspaces for Multiple Environments</h2>
+
+            <p>Workspaces are great for managing multiple environments:</p>
+
+            <pre><code># Create workspaces
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new prod
+
+# Switch between them
+terraform workspace select prod
+
+# Use workspace name in resources
+resource "aws_instance" "app" {
+  tags = {
+    Environment = terraform.workspace
+  }
+}</code></pre>
+
+            <h2>Data Sources for Existing Resources</h2>
+
+            <p>Don't recreate what already exists:</p>
+
+            <pre><code>data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+  }
+}
+
+data "aws_vpc" "existing" {
+  tags = {
+    Name = "legacy-vpc"
+  }
+}
+
+resource "aws_instance" "app" {
+  ami           = data.aws_ami.ubuntu.id
+  subnet_id     = data.aws_vpc.existing.id
+}</code></pre>
+
+            <h2>Conditional Resources</h2>
+
+            <p>Use <code>count</code> for conditional creation:</p>
+
+            <pre><code>resource "aws_instance" "bastion" {
+  count = var.create_bastion ? 1 : 0
+  
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.micro"
+}
+
+# Reference with index
+output "bastion_ip" {
+  value = var.create_bastion ? aws_instance.bastion[0].public_ip : null
+}</code></pre>
+
+            <h2>Lifecycle Rules</h2>
+
+            <p>Prevent accidental deletions:</p>
+
+            <pre><code>resource "aws_db_instance" "prod" {
+  lifecycle {
+    prevent_destroy = true
+    
+    ignore_changes = [
+      password,  # Don't update if password changes
+    ]
+    
+    create_before_destroy = true
+  }
+}</code></pre>
+
+            <h2>My Terraform Workflow</h2>
+
+            <pre><code># 1. Format code
+terraform fmt -recursive
+
+# 2. Validate syntax
+terraform validate
+
+# 3. Plan changes
+terraform plan -out=tfplan
+
+# 4. Review the plan carefully
+# 5. Apply if everything looks good
+terraform apply tfplan
+
+# 6. Commit state lock
+git add .
+git commit -m "Applied infrastructure changes"</code></pre>
+
+            <h2>Common Mistakes to Avoid</h2>
+
+            <p><strong>1. Not using remote state:</strong> Local state files will bite you eventually.</p>
+
+            <p><strong>2. Hardcoding values:</strong> Use variables for everything that might change.</p>
+
+            <p><strong>3. Not using modules:</strong> Copy-pasting code is a recipe for inconsistency.</p>
+
+            <p><strong>4. Ignoring state locking:</strong> Concurrent applies will corrupt your state.</p>
+
+            <p><strong>5. Not reviewing plans:</strong> Always check what Terraform will do before applying.</p>
+
+            <h2>Pro Tips</h2>
+
+            <ul>
+                <li>Use <code>terraform graph | dot -Tpng > graph.png</code> to visualize dependencies</li>
+                <li>Enable debug logging: <code>export TF_LOG=DEBUG</code></li>
+                <li>Use <code>terraform state list</code> to see all resources</li>
+                <li>Import existing resources: <code>terraform import aws_instance.example i-1234567890abcdef0</code></li>
+                <li>Use <code>terraform taint</code> to force resource recreation</li>
+            </ul>
+
+            <h2>Final Thoughts</h2>
+
+            <p>Terraform isn't perfect, but it's the best tool we have for infrastructure as code. Start small, use modules, and always review your plans. Your infrastructure will be more reliable, reproducible, and maintainable.</p>
+
+            <p>And remember: with great power comes great responsibility. One wrong <code>terraform destroy</code> and you're having a very bad day.</p>
+
+            <p>Happy terraforming! 🏗️</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

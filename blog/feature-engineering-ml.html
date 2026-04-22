@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature Engineering Techniques for Machine Learning - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+        .blog-post-header {
+            margin-bottom: 3rem;
+        }
+        .blog-post-meta {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        .blog-post-content {
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        .blog-post-content h2 {
+            color: var(--text-primary);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.75rem;
+        }
+        .blog-post-content h3 {
+            color: var(--text-primary);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.35rem;
+        }
+        .blog-post-content p {
+            margin-bottom: 1.5rem;
+        }
+        .blog-post-content code {
+            background: var(--bg-card);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+            color: var(--accent-primary);
+        }
+        .blog-post-content pre {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+        .blog-post-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+        .blog-post-content ul {
+            margin-bottom: 1.5rem;
+            padding-left: 2rem;
+        }
+        .blog-post-content li {
+            margin-bottom: 0.5rem;
+        }
+        .back-link {
+            display: inline-block;
+            color: var(--accent-primary);
+            text-decoration: none;
+            margin-bottom: 2rem;
+            transition: color 0.3s ease;
+        }
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;">
+                    <span class="logo">VNC</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">January 8, 2026 • 14 min read</div>
+            <h1 class="section-title">Feature Engineering Techniques for Machine Learning</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#data-science</span>
+                <span class="blog-tag">#machine-learning</span>
+                <span class="blog-tag">#python</span>
+                <span class="blog-tag">#feature-engineering</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>Feature engineering is often the difference between a mediocre model and one that actually works in production. I learned this the hard way when my first ML model had 60% accuracy, and after proper feature engineering, it jumped to 89%. Let me share what I've learned.</p>
+
+            <h2>Why Feature Engineering Matters More Than You Think</h2>
+            
+            <p>Here's the truth: fancy algorithms won't save you if your features are garbage. I've seen teams spend weeks tuning hyperparameters when they should have spent that time understanding their data and creating better features.</p>
+
+            <p>A good feature should:</p>
+            <ul>
+                <li>Have a clear relationship with the target variable</li>
+                <li>Be available at prediction time</li>
+                <li>Not leak information from the future</li>
+                <li>Be interpretable (bonus points)</li>
+            </ul>
+
+            <h2>Handling Missing Values (The Right Way)</h2>
+
+            <p>Don't just fill everything with zeros or means. Think about WHY the data is missing:</p>
+
+            <pre><code>import pandas as pd
+import numpy as np
+
+# Create a missing indicator
+df['age_missing'] = df['age'].isnull().astype(int)
+
+# Fill with median for numerical
+df['age'].fillna(df['age'].median(), inplace=True)
+
+# For categorical, 'Unknown' might be informative
+df['category'].fillna('Unknown', inplace=True)
+
+# Sometimes the missingness itself is a feature
+df['num_missing_features'] = df.isnull().sum(axis=1)</code></pre>
+
+            <p>In one project, the fact that income was missing turned out to be a strong predictor - people who didn't report income were more likely to default on loans.</p>
+
+            <h2>Encoding Categorical Variables</h2>
+
+            <h3>One-Hot Encoding (Use Sparingly)</h3>
+
+            <pre><code>from sklearn.preprocessing import OneHotEncoder
+
+# For low cardinality features
+encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+encoded = encoder.fit_transform(df[['color']])
+
+# But watch out for high cardinality!
+# 1000 unique cities = 1000 new columns = disaster</code></pre>
+
+            <h3>Target Encoding (My Favorite)</h3>
+
+            <p>This technique has saved me countless times with high-cardinality features:</p>
+
+            <pre><code>def target_encode(df, column, target, smoothing=10):
+    # Calculate global mean
+    global_mean = df[target].mean()
+    
+    # Calculate category means and counts
+    agg = df.groupby(column)[target].agg(['mean', 'count'])
+    
+    # Smooth the means
+    smoothed = (agg['mean'] * agg['count'] + global_mean * smoothing) / (agg['count'] + smoothing)
+    
+    # Map back to dataframe
+    return df[column].map(smoothed)
+
+# Usage
+df['city_encoded'] = target_encode(df, 'city', 'target')</code></pre>
+
+            <p>The smoothing parameter prevents overfitting on rare categories. I usually set it to 10-20 depending on dataset size.</p>
+
+            <h2>Creating Interaction Features</h2>
+
+            <p>Sometimes the magic happens when you combine features:</p>
+
+            <pre><code># Simple interactions
+df['price_per_sqft'] = df['price'] / df['square_feet']
+df['income_to_debt_ratio'] = df['income'] / (df['debt'] + 1)  # +1 to avoid division by zero
+
+# Polynomial features (use carefully!)
+from sklearn.preprocessing import PolynomialFeatures
+
+poly = PolynomialFeatures(degree=2, include_bias=False)
+poly_features = poly.fit_transform(df[['age', 'income']])
+
+# This creates: age, income, age², age*income, income²</code></pre>
+
+            <p>Pro tip: Don't go crazy with polynomial features. I once created degree-3 polynomials on 20 features and ended up with 1,540 features. The model was slower than a snail and didn't perform better.</p>
+
+            <h2>Time-Based Features</h2>
+
+            <p>If you have timestamps, extract everything you can:</p>
+
+            <pre><code>df['date'] = pd.to_datetime(df['date'])
+
+# Basic extractions
+df['year'] = df['date'].dt.year
+df['month'] = df['date'].dt.month
+df['day'] = df['date'].dt.day
+df['dayofweek'] = df['date'].dt.dayofweek
+df['hour'] = df['date'].dt.hour
+
+# Cyclical encoding (important!)
+df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
+df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
+
+# Time since event
+df['days_since_signup'] = (df['current_date'] - df['signup_date']).dt.days
+
+# Is it weekend?
+df['is_weekend'] = df['dayofweek'].isin([5, 6]).astype(int)</code></pre>
+
+            <p>The cyclical encoding is crucial - it tells the model that December (12) and January (1) are actually close together.</p>
+
+            <h2>Aggregation Features</h2>
+
+            <p>These are gold for user-level predictions:</p>
+
+            <pre><code># User behavior aggregations
+user_features = df.groupby('user_id').agg({
+    'purchase_amount': ['mean', 'sum', 'std', 'count'],
+    'days_since_last_purchase': 'min',
+    'product_category': lambda x: x.nunique()  # number of unique categories
+})
+
+# Flatten column names
+user_features.columns = ['_'.join(col).strip() for col in user_features.columns]
+
+# Time-based aggregations
+df['purchases_last_30_days'] = df.groupby('user_id')['purchase_amount'].rolling(window=30).sum()</code></pre>
+
+            <h2>Text Features</h2>
+
+            <p>Don't just use TF-IDF for everything:</p>
+
+            <pre><code># Basic text features
+df['text_length'] = df['text'].str.len()
+df['word_count'] = df['text'].str.split().str.len()
+df['avg_word_length'] = df['text_length'] / df['word_count']
+df['num_uppercase'] = df['text'].str.count(r'[A-Z]')
+df['num_special_chars'] = df['text'].str.count(r'[!@#$%^&*()]')
+
+# Sentiment (if relevant)
+from textblob import TextBlob
+df['sentiment'] = df['text'].apply(lambda x: TextBlob(x).sentiment.polarity)</code></pre>
+
+            <h2>Feature Scaling</h2>
+
+            <p>Different algorithms need different scaling:</p>
+
+            <pre><code>from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+
+# StandardScaler: for normally distributed features
+# Good for: Linear models, Neural Networks
+scaler = StandardScaler()
+df[['age', 'income']] = scaler.fit_transform(df[['age', 'income']])
+
+# MinMaxScaler: scales to [0, 1]
+# Good for: Neural Networks, algorithms sensitive to feature magnitude
+scaler = MinMaxScaler()
+
+# RobustScaler: uses median and IQR, robust to outliers
+# Good for: when you have outliers you can't remove
+scaler = RobustScaler()</code></pre>
+
+            <p>Tree-based models (Random Forest, XGBoost) don't need scaling, which is one reason I love them.</p>
+
+            <h2>Feature Selection</h2>
+
+            <p>More features ≠ better model. Here's my process:</p>
+
+            <pre><code>from sklearn.feature_selection import SelectKBest, f_classif, mutual_info_classif
+
+# 1. Remove low variance features
+from sklearn.feature_selection import VarianceThreshold
+selector = VarianceThreshold(threshold=0.01)
+X_high_variance = selector.fit_transform(X)
+
+# 2. Remove highly correlated features
+corr_matrix = df.corr().abs()
+upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+to_drop = [column for column in upper.columns if any(upper[column] > 0.95)]
+
+# 3. Use feature importance from tree models
+from xgboost import XGBClassifier
+model = XGBClassifier()
+model.fit(X_train, y_train)
+important_features = pd.DataFrame({
+    'feature': X_train.columns,
+    'importance': model.feature_importances_
+}).sort_values('importance', ascending=False)</code></pre>
+
+            <h2>My Feature Engineering Checklist</h2>
+
+            <ul>
+                <li>✓ Handle missing values thoughtfully</li>
+                <li>✓ Encode categorical variables appropriately</li>
+                <li>✓ Create domain-specific features</li>
+                <li>✓ Generate interaction features</li>
+                <li>✓ Extract time-based features</li>
+                <li>✓ Create aggregation features</li>
+                <li>✓ Scale features if needed</li>
+                <li>✓ Remove redundant features</li>
+                <li>✓ Validate features don't leak information</li>
+            </ul>
+
+            <h2>Common Mistakes to Avoid</h2>
+
+            <p><strong>1. Data Leakage:</strong> Using information that wouldn't be available at prediction time. I once included "days_until_churn" in a churn prediction model. Oops.</p>
+
+            <p><strong>2. Not Using Cross-Validation:</strong> Always validate your features with proper CV to avoid overfitting.</p>
+
+            <p><strong>3. Ignoring Domain Knowledge:</strong> Talk to domain experts. They know which features actually matter.</p>
+
+            <h2>Final Thoughts</h2>
+
+            <p>Feature engineering is more art than science. It requires creativity, domain knowledge, and lots of experimentation. Don't be afraid to try weird combinations - some of my best features came from random ideas.</p>
+
+            <p>Start simple, measure everything, and iterate. And remember: a simple model with great features beats a complex model with mediocre features every time.</p>
+
+            <p>Happy feature engineering! 🔬</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>

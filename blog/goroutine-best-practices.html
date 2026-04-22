@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goroutine Best Practices: Avoiding Common Pitfalls - Vishnu Nair C</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .blog-post-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+        .blog-post-header {
+            margin-bottom: 3rem;
+        }
+        .blog-post-meta {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        .blog-post-content {
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        .blog-post-content h2 {
+            color: var(--text-primary);
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.75rem;
+        }
+        .blog-post-content h3 {
+            color: var(--text-primary);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.35rem;
+        }
+        .blog-post-content p {
+            margin-bottom: 1.5rem;
+        }
+        .blog-post-content code {
+            background: var(--bg-card);
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+            color: var(--accent-primary);
+        }
+        .blog-post-content pre {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+        .blog-post-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+        .blog-post-content ul, .blog-post-content ol {
+            margin-bottom: 1.5rem;
+            padding-left: 2rem;
+        }
+        .blog-post-content li {
+            margin-bottom: 0.5rem;
+        }
+        .back-link {
+            display: inline-block;
+            color: var(--accent-primary);
+            text-decoration: none;
+            margin-bottom: 2rem;
+            transition: color 0.3s ease;
+        }
+        .back-link:hover {
+            color: var(--accent-secondary);
+        }
+        .warning-box {
+            background: rgba(236, 72, 153, 0.1);
+            border-left: 4px solid var(--accent-primary);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <a href="../index.html" style="text-decoration: none;">
+                    <span class="logo">VNC</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <article class="blog-post-container">
+        <a href="../index.html#blog" class="back-link">← Back to Blog</a>
+        
+        <header class="blog-post-header">
+            <div class="blog-post-meta">September 10, 2025 • 15 min read</div>
+            <h1 class="section-title">Goroutine Best Practices: Avoiding Common Pitfalls</h1>
+            <div class="blog-post-tags">
+                <span class="blog-tag">#golang</span>
+                <span class="blog-tag">#concurrency</span>
+                <span class="blog-tag">#goroutines</span>
+                <span class="blog-tag">#backend</span>
+            </div>
+        </header>
+
+        <div class="blog-post-content">
+            <p>I'll be honest - goroutines are one of the reasons I fell in love with Go. They're lightweight, easy to use, and make concurrent programming feel almost too simple. But that simplicity can be deceiving. Over the past few years, I've debugged enough goroutine-related issues to write a book about what NOT to do.</p>
+
+            <p>So let me save you some pain and share the lessons I learned the hard way.</p>
+
+            <h2>The Goroutine Leak That Cost Us $10K</h2>
+
+            <p>Last year, our production API started eating memory like crazy. We were spinning up new instances every few hours just to keep things running. After days of debugging, we found the culprit - a goroutine leak in our notification service.</p>
+
+            <p>Here's what the code looked like (simplified):</p>
+
+            <pre><code>func sendNotifications(users []User) {
+    for _, user := range users {
+        go func(u User) {
+            // Send notification
+            resp, err := http.Post(notificationURL, "application/json", body)
+            if err != nil {
+                log.Printf("failed to send: %v", err)
+                return
+            }
+            defer resp.Body.Close()
+        }(user)
+    }
+}</code></pre>
+
+            <p>Looks innocent, right? The problem: we were creating goroutines without any way to track or limit them. When the notification service was slow or down, goroutines would pile up, each holding onto HTTP connections and memory.</p>
+
+            <div class="warning-box">
+                <strong>Lesson #1:</strong> Never spawn goroutines without a way to control their lifecycle. Always use context for cancellation and worker pools for limiting concurrency.
+            </div>
+
+            <h2>The Right Way: Worker Pools</h2>
+
+            <p>Here's how we fixed it:</p>
+
+            <pre><code>func sendNotifications(ctx context.Context, users []User) error {
+    const maxWorkers = 10
+    jobs := make(chan User, len(users))
+    results := make(chan error, len(users))
+    
+    // Start worker pool
+    for w := 0; w < maxWorkers; w++ {
+        go worker(ctx, jobs, results)
+    }
+    
+    // Send jobs
+    for _, user := range users {
+        jobs <- user
+    }
+    close(jobs)
+    
+    // Collect results
+    var errs []error
+    for i := 0; i < len(users); i++ {
+        if err := <-results; err != nil {
+            errs = append(errs, err)
+        }
+    }
+    
+    return errors.Join(errs...)
+}
+
+func worker(ctx context.Context, jobs <-chan User, results chan<- error) {
+    for user := range jobs {
+        select {
+        case <-ctx.Done():
+            results <- ctx.Err()
+            return
+        default:
+            results <- sendNotification(ctx, user)
+        }
+    }
+}</code></pre>
+
+            <p>This approach:</p>
+            <ul>
+                <li>Limits concurrent goroutines to 10</li>
+                <li>Respects context cancellation</li>
+                <li>Properly handles errors</li>
+                <li>Cleans up resources</li>
+            </ul>
+
+            <h2>Channel Deadlocks: The Silent Killer</h2>
+
+            <p>Here's another bug that haunted me for weeks. Can you spot the problem?</p>
+
+            <pre><code>func processData(data []int) []int {
+    results := make(chan int)
+    
+    for _, d := range data {
+        go func(val int) {
+            results <- val * 2
+        }(d)
+    }
+    
+    var processed []int
+    for r := range results {
+        processed = append(processed, r)
+    }
+    
+    return processed
+}</code></pre>
+
+            <p>If you said "this will deadlock," you're absolutely right! The problem: we're ranging over <code>results</code> channel, but nobody ever closes it. The loop will wait forever.</p>
+
+            <p>Here's the fix:</p>
+
+            <pre><code>func processData(data []int) []int {
+    results := make(chan int, len(data))
+    
+    for _, d := range data {
+        go func(val int) {
+            results <- val * 2
+        }(d)
+    }
+    
+    // Close channel after all goroutines finish
+    go func() {
+        // Wait for all goroutines (you'd use sync.WaitGroup in real code)
+        time.Sleep(time.Second)
+        close(results)
+    }()
+    
+    var processed []int
+    for r := range results {
+        processed = append(processed, r)
+    }
+    
+    return processed
+}</code></pre>
+
+            <p>Better yet, use <code>sync.WaitGroup</code>:</p>
+
+            <pre><code>func processData(data []int) []int {
+    results := make(chan int, len(data))
+    var wg sync.WaitGroup
+    
+    for _, d := range data {
+        wg.Add(1)
+        go func(val int) {
+            defer wg.Done()
+            results <- val * 2
+        }(d)
+    }
+    
+    // Close channel when all goroutines finish
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+    
+    var processed []int
+    for r := range results {
+        processed = append(processed, r)
+    }
+    
+    return processed
+}</code></pre>
+
+            <h2>Context: Your Best Friend</h2>
+
+            <p>If there's one thing you take away from this post, let it be this: <strong>always use context for goroutines that do I/O or long-running operations</strong>.</p>
+
+            <p>Here's a real example from our codebase:</p>
+
+            <pre><code>func fetchUserData(ctx context.Context, userID string) (*User, error) {
+    // Create a channel for the result
+    resultCh := make(chan *User, 1)
+    errCh := make(chan error, 1)
+    
+    go func() {
+        // Simulate slow database query
+        user, err := db.GetUser(userID)
+        if err != nil {
+            errCh <- err
+            return
+        }
+        resultCh <- user
+    }()
+    
+    // Wait for result or context cancellation
+    select {
+    case user := <-resultCh:
+        return user, nil
+    case err := <-errCh:
+        return nil, err
+    case <-ctx.Done():
+        return nil, ctx.Err()
+    }
+}</code></pre>
+
+            <p>This pattern ensures that if the client cancels the request (or times out), we don't waste resources continuing the operation.</p>
+
+            <h2>Common Mistakes I See All The Time</h2>
+
+            <h3>1. Forgetting to Pass Variables to Goroutines</h3>
+
+            <pre><code>// WRONG
+for _, item := range items {
+    go func() {
+        process(item) // item is captured by reference!
+    }()
+}
+
+// RIGHT
+for _, item := range items {
+    go func(i Item) {
+        process(i)
+    }(item)
+}</code></pre>
+
+            <h3>2. Not Handling Panics</h3>
+
+            <p>A panic in a goroutine will crash your entire program. Always recover:</p>
+
+            <pre><code>go func() {
+    defer func() {
+        if r := recover(); r != nil {
+            log.Printf("recovered from panic: %v", r)
+        }
+    }()
+    
+    // Your code here
+}()</code></pre>
+
+            <h3>3. Ignoring Buffered Channels</h3>
+
+            <p>Unbuffered channels can cause unnecessary blocking. If you know the size, use a buffered channel:</p>
+
+            <pre><code>// Instead of this
+results := make(chan Result)
+
+// Do this
+results := make(chan Result, expectedSize)</code></pre>
+
+            <h2>Testing Concurrent Code</h2>
+
+            <p>Testing goroutines is tricky. Here's my approach:</p>
+
+            <pre><code>func TestConcurrentProcessing(t *testing.T) {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    
+    data := generateTestData(1000)
+    results, err := processData(ctx, data)
+    
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    
+    if len(results) != len(data) {
+        t.Errorf("expected %d results, got %d", len(data), len(results))
+    }
+}</code></pre>
+
+            <p>Always use timeouts in tests. If your code has a deadlock, you want to know immediately, not wait forever.</p>
+
+            <h2>Tools That Saved My Life</h2>
+
+            <p><strong>1. Race Detector:</strong> Run your tests with <code>go test -race</code>. It's caught so many bugs for me.</p>
+
+            <p><strong>2. pprof:</strong> Use <code>runtime/pprof</code> to profile goroutines:</p>
+
+            <pre><code>import _ "net/http/pprof"
+
+go func() {
+    log.Println(http.ListenAndServe("localhost:6060", nil))
+}()
+
+// Then visit http://localhost:6060/debug/pprof/goroutine</code></pre>
+
+            <p><strong>3. Goleak:</strong> This library from Uber helps detect goroutine leaks in tests:</p>
+
+            <pre><code>func TestMain(m *testing.M) {
+    goleak.VerifyTestMain(m)
+}</code></pre>
+
+            <h2>Final Thoughts</h2>
+
+            <p>Goroutines are powerful, but with great power comes great responsibility (yeah, I went there). The key is to:</p>
+
+            <ul>
+                <li>Always control goroutine lifecycle with context</li>
+                <li>Use worker pools to limit concurrency</li>
+                <li>Close channels when you're done</li>
+                <li>Handle panics gracefully</li>
+                <li>Test with race detector</li>
+            </ul>
+
+            <p>I've made every mistake in this post (some multiple times). Learn from my pain, and may your goroutines never leak.</p>
+
+            <p>Stay concurrent, stay safe! 🔒</p>
+        </div>
+    </article>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Vishnu Nair C. Built with HTML, CSS, and JavaScript.</p>
+        </div>
+    </footer>
+</body>
+</html>
